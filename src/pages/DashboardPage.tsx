@@ -57,12 +57,19 @@ export function DashboardPage() {
               user={auth.user}
               onRequestReview={() => navigate(SECTION_PATHS.review)}
               onViewRequests={() => navigate(SECTION_PATHS.requests)}
+              onOpenProfile={() => navigate(SECTION_PATHS.profile)}
+              onOpenSettings={() => navigate(SECTION_PATHS.settings)}
             />
           }
         />
         <Route
           path="request-review"
-          element={<RequestReviewPage profileId={auth.user.profileId} />}
+          element={
+            <RequestReviewPage
+              profileId={auth.user.profileId}
+              onViewRequests={() => navigate(SECTION_PATHS.requests)}
+            />
+          }
         />
         <Route
           path="requests"
@@ -70,9 +77,14 @@ export function DashboardPage() {
             <div className="dashboard">
               <DashboardHeader
                 title="Requests"
-                subtitle="Review requests stored in local mock state."
+                subtitle="Track requests, reminders, and customer responses."
               />
-              <RequestHistory profileId={auth.user.profileId} title="Request history" />
+              <RequestHistory
+                profileId={auth.user.profileId}
+                title="Request history"
+                showControls
+                onRequestReview={() => navigate(SECTION_PATHS.review)}
+              />
             </div>
           }
         />

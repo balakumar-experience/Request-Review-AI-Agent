@@ -14,6 +14,7 @@ export function MessageList({ messages, actions }: MessageListProps) {
     <ol className="thread">
       {visible.map((message) => (
         <li key={message.id} className={`thread__row thread__row--${message.role}`}>
+          <span className="thread__sender">{message.role === 'user' ? 'You' : 'Assistant'}</span>
           <MessageBody message={message} actions={actions} />
         </li>
       ))}

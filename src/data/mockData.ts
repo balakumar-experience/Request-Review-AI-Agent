@@ -20,6 +20,7 @@ export const businessRules = {
   dailyLimit: 3,
   cooldownDays: 7,
   recentlyReviewedDays: 30,
+  reminderCooldownHours: 24,
 } as const
 
 export const profiles: Profile[] = [
@@ -47,6 +48,7 @@ export const defaultProfileId = 'prof-john'
 
 export const recipients: MockRecipientRecord[] = [
   { email: 'michael@gmail.com', name: 'Michael Johnson' },
+  { email: 'emily@example.com', name: 'Emily Parker' },
   { email: 'sarah@gmail.com', name: 'Sarah Williams' },
   { email: 'david@gmail.com', name: 'David Chen' },
   { email: 'unsubscribed@example.com', name: 'Sarah', unsubscribed: true },
@@ -128,6 +130,19 @@ export function appendRequest(request: ReviewRequest): ReviewRequest {
   return request
 }
 
+export function updateRequest(
+  id: string,
+  update: (request: ReviewRequest) => ReviewRequest,
+): ReviewRequest | undefined {
+  const index = mockStore.requests.findIndex((request) => request.id === id)
+  if (index < 0) return undefined
+  const next = update(mockStore.requests[index])
+  mockStore.requests = mockStore.requests.map((request, requestIndex) =>
+    requestIndex === index ? next : request,
+  )
+  return next
+}
+
 export function listRequests(profileId?: string): ReviewRequest[] {
   const items = profileId
     ? mockStore.requests.filter((request) => request.profileId === profileId)
@@ -163,13 +178,9 @@ function toDayKey(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-function minutesAgo(minutes: number): string {
-  return new Date(Date.now() - minutes * 60 * 1000).toISOString()
-}
-
 function seedHistory() {
   const john = profiles[0]
-  const michaelSentAt = minutesAgo(2)
+  const michaelSentAt = daysAgo(3)
 
   mockStore.requests = [
     mockRequest({
@@ -181,6 +192,16 @@ function seedHistory() {
       createdAt: michaelSentAt,
       sentAt: michaelSentAt,
       email: seedEmail(john, 'Michael Johnson', 'michael@gmail.com'),
+    }),
+    mockRequest({
+      id: 'req-seed-emily',
+      profileId: john.id,
+      recipientName: 'Emily Parker',
+      recipientEmail: 'emily@example.com',
+      status: 'awaiting_review',
+      createdAt: daysAgo(5),
+      sentAt: daysAgo(5),
+      email: seedEmail(john, 'Emily Parker', 'emily@example.com'),
     }),
     mockRequest({
       id: 'req-seed-sarah',
@@ -275,8 +296,19 @@ function mockRequest(
   },
 ): ReviewRequest {
   const status: RequestStatus = input.status
+  const profile = profiles.find((item) => item.id === input.profileId)
+  const nameParts = input.recipientName.trim().split(/\s+/)
   return {
     ...input,
+    recipient: {
+      firstName: nameParts.shift() ?? '',
+      lastName: nameParts.join(' '),
+      email: input.recipientEmail,
+    },
+    profileName: profile?.name ?? 'Unknown profile',
+    subject: input.email.subject,
+    content: input.email.body,
+    source: 'manual',
     timeline: input.timeline ?? [
       {
         id: `${input.id}-created`,

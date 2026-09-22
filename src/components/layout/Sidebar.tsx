@@ -1,4 +1,4 @@
-import { House, Inbox, LogOut, Sparkles, UserRound, Settings } from 'lucide-react'
+import { Inbox, LogOut, Sparkles, UserRound, Settings } from 'lucide-react'
 import type { User } from '../../auth/mockUsers'
 
 export type AppSection = 'home' | 'review' | 'requests' | 'profile' | 'settings'
@@ -12,7 +12,6 @@ interface SidebarProps {
 }
 
 const NAV: Array<{ id: AppSection; label: string; icon: typeof Sparkles }> = [
-  { id: 'home', label: 'Home', icon: House },
   { id: 'review', label: 'Request a Review', icon: Sparkles },
   { id: 'requests', label: 'Requests', icon: Inbox },
   { id: 'profile', label: 'Profile', icon: UserRound },

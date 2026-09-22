@@ -2,6 +2,7 @@ export interface DemoScenario {
   id: string
   label: string
   utterance: string
+  intent?: 'create_request' | 'send_reminder' | 'send_batch_reminders' | 'show_pending' | 'show_reminder_ready'
   firstName?: string
   lastName?: string
   email?: string
@@ -43,6 +44,26 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     utterance: 'Send David a review request at reviewed@example.com',
     firstName: 'David',
     email: 'reviewed@example.com',
+  },
+  {
+    id: 'reminder',
+    label: 'Send reminder',
+    utterance: 'Send a reminder to Michael Johnson',
+    intent: 'send_reminder',
+    firstName: 'Michael',
+    lastName: 'Johnson',
+  },
+  {
+    id: 'batch-reminders',
+    label: 'Remind everyone',
+    utterance: "Send reminders to everyone who hasn't reviewed yet",
+    intent: 'send_batch_reminders',
+  },
+  {
+    id: 'pending-requests',
+    label: 'Show pending',
+    utterance: 'Show my pending review requests',
+    intent: 'show_pending',
   },
 ]
 

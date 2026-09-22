@@ -9,6 +9,8 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   const tone =
     status === 'sent' || status === 'awaiting_review'
       ? 'awaiting_review'
+      : status === 'review_received'
+        ? 'reviewed'
       : status
 
   return <span className={`status-badge status-badge--${tone}`}>{displayStatus(status)}</span>

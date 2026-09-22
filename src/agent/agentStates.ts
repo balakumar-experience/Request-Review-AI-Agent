@@ -1,4 +1,5 @@
 import type { EmailDraft, ReviewRequest } from '../types/requestReview'
+import type { ReminderCandidate } from '../tools/reminder'
 import type { ExtractedRecipient, ParsedIntent } from './intentParser'
 
 export const AGENT_STATES = [
@@ -11,6 +12,12 @@ export const AGENT_STATES = [
   'awaiting_confirmation',
   'sending',
   'completed',
+  'reminder_found',
+  'reminder_preview',
+  'reminder_confirmation',
+  'reminder_sending',
+  'reminder_completed',
+  'query_results',
   'error',
 ] as const
 
@@ -88,6 +95,11 @@ export interface AgentSnapshot {
   sendingSteps: ProcessingStep[]
   sentRequest: ReviewRequest | null
   viewingRequest: boolean
+  reminderCandidates: ReminderCandidate[]
+  reminderDrafts: EmailDraft[]
+  reminderSentCount: number
+  queryRequests: ReviewRequest[]
+  queryTitle: string
 }
 
 export const INITIAL_AGENT_SNAPSHOT: AgentSnapshot = {
@@ -108,6 +120,11 @@ export const INITIAL_AGENT_SNAPSHOT: AgentSnapshot = {
   sendingSteps: [],
   sentRequest: null,
   viewingRequest: false,
+  reminderCandidates: [],
+  reminderDrafts: [],
+  reminderSentCount: 0,
+  queryRequests: [],
+  queryTitle: '',
 }
 
 export type AgentEvent =
@@ -124,6 +141,12 @@ export type AgentEvent =
   | { type: 'CANCEL' }
   | { type: 'SEND_SUCCEEDED' }
   | { type: 'SEND_FAILED'; message: string }
+  | { type: 'REMINDERS_FOUND' }
+  | { type: 'REMINDER_PREVIEW_READY' }
+  | { type: 'REMINDER_REQUEST_CONFIRMATION' }
+  | { type: 'REMINDER_SEND_STARTED' }
+  | { type: 'REMINDER_SEND_SUCCEEDED' }
+  | { type: 'SHOW_RESULTS' }
   | { type: 'RETRY' }
   | { type: 'RESET' }
 
@@ -179,6 +202,36 @@ export const AGENT_STATE_VIEW: Record<AgentState, AgentStateView> = {
     description: 'The review request was added to history.',
     tone: 'success',
   },
+  reminder_found: {
+    title: 'Reminder eligibility',
+    description: 'The assistant found matching requests and checked reminder eligibility.',
+    tone: 'attention',
+  },
+  reminder_preview: {
+    title: 'Reminder preview',
+    description: 'Review the reminder messages or ask the assistant to edit them.',
+    tone: 'neutral',
+  },
+  reminder_confirmation: {
+    title: 'Ready to send reminders?',
+    description: 'Nothing is sent until you explicitly confirm.',
+    tone: 'attention',
+  },
+  reminder_sending: {
+    title: 'Sending reminders',
+    description: 'Simulating reminder delivery.',
+    tone: 'progress',
+  },
+  reminder_completed: {
+    title: 'Reminders sent',
+    description: 'Reminder activity was added to request history.',
+    tone: 'success',
+  },
+  query_results: {
+    title: 'Request results',
+    description: 'Requests matching your question.',
+    tone: 'neutral',
+  },
   error: {
     title: 'Couldn’t continue',
     description: 'Something blocked this request. You can retry or start over.',
@@ -194,6 +247,8 @@ const NEXT_STATE: Record<AgentState, Partial<Record<AgentEvent['type'], AgentSta
   understanding: {
     INFORMATION_MISSING: 'missing_information',
     INFORMATION_COMPLETE: 'validating',
+    REMINDERS_FOUND: 'reminder_found',
+    SHOW_RESULTS: 'query_results',
     CANCEL: 'idle',
     RESET: 'idle',
   },
@@ -231,6 +286,33 @@ const NEXT_STATE: Record<AgentState, Partial<Record<AgentEvent['type'], AgentSta
     SEND_FAILED: 'error',
   },
   completed: {
+    RESET: 'idle',
+    USER_MESSAGE: 'understanding',
+  },
+  reminder_found: {
+    REMINDER_PREVIEW_READY: 'reminder_preview',
+    RESET: 'idle',
+    CANCEL: 'idle',
+  },
+  reminder_preview: {
+    REMINDER_REQUEST_CONFIRMATION: 'reminder_confirmation',
+    RESET: 'idle',
+    CANCEL: 'idle',
+  },
+  reminder_confirmation: {
+    REMINDER_SEND_STARTED: 'reminder_sending',
+    CANCEL: 'reminder_preview',
+    RESET: 'idle',
+  },
+  reminder_sending: {
+    REMINDER_SEND_SUCCEEDED: 'reminder_completed',
+    SEND_FAILED: 'error',
+  },
+  reminder_completed: {
+    RESET: 'idle',
+    USER_MESSAGE: 'understanding',
+  },
+  query_results: {
     RESET: 'idle',
     USER_MESSAGE: 'understanding',
   },
@@ -282,10 +364,16 @@ export function reduceAgentSnapshot(
 }
 
 export function isTerminalAgentState(state: AgentState): boolean {
-  return state === 'completed' || state === 'error'
+  return state === 'completed' || state === 'reminder_completed' || state === 'error'
 }
 
-const PROCESSING_STATES: AgentState[] = ['understanding', 'validating', 'preparing', 'sending']
+const PROCESSING_STATES: AgentState[] = [
+  'understanding',
+  'validating',
+  'preparing',
+  'sending',
+  'reminder_sending',
+]
 
 /** True while the agent is working and the composer should stay out of the way. */
 export function isProcessingAgentState(state: AgentState): boolean {

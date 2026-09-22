@@ -27,7 +27,7 @@ export function ConfirmSend({ email, onCancel, onConfirm }: ConfirmSendProps) {
 
       <div className="confirm__actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          Go Back
         </button>
         <button type="button" className="btn btn--primary" onClick={onConfirm}>
           Send Review Request

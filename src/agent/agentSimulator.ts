@@ -4,6 +4,14 @@ import { simulateDelay } from '../tools/delay'
 import { generateEmail, reviseEmail } from '../tools/generateEmail'
 import { prepareRequest as prepareRequestTool } from '../tools/prepareRequest'
 import { sendRequest } from '../tools/sendRequest'
+import {
+  findReminderCandidates,
+  generateReminderEmail,
+  listPendingRequests,
+  listReminderReadyRequests,
+  reviseReminderEmail,
+  sendReminder,
+} from '../tools/reminder'
 import { validateRecipient } from '../tools/validateRecipient'
 import {
   createActivity,
@@ -43,6 +51,9 @@ export interface AgentActions {
   viewSentRequest(): Promise<void>
   closeSentRequest(): Promise<void>
   loadDemoUtterance(utterance: string): Promise<void>
+  previewReminders(): Promise<void>
+  acknowledgeReminderPreview(): Promise<void>
+  confirmReminderSend(): Promise<void>
   cancel(): Promise<void>
   retry(): Promise<void>
   reset(): Promise<void>
@@ -166,6 +177,34 @@ export function createAgentSimulator(profileId = defaultProfileId): AgentSimulat
       return
     }
 
+    if (state === 'reminder_confirmation') {
+      pushUserText(text)
+      pushAssistantText('Nothing is sent until you click the confirmation button.')
+      return
+    }
+
+    if (state === 'reminder_preview') {
+      const id = ++runId
+      pushUserText(text)
+      patch({ composerDraft: '', revisingEmail: true })
+      await simulateDelay(420)
+      if (!stillCurrent(id)) return
+      const drafts = snapshot.reminderDrafts.map((email) => reviseReminderEmail(email, text))
+      patch({ reminderDrafts: drafts, revisingEmail: false, editingWithAi: true })
+      pushAssistantText('Updated all reminder messages based on your request.')
+      return
+    }
+
+    if (
+      parsed.intent === 'send_reminder' ||
+      parsed.intent === 'send_batch_reminders' ||
+      parsed.intent === 'show_pending' ||
+      parsed.intent === 'show_reminder_ready'
+    ) {
+      await runReviewAction(parsed)
+      return
+    }
+
     const revisingInPlace = Boolean(snapshot.emailDraft) && state === 'preview'
 
     if (revisingInPlace) {
@@ -201,6 +240,108 @@ export function createAgentSimulator(profileId = defaultProfileId): AgentSimulat
 
     patch({ recipient })
     await runUnderstanding(id, recipient, parsed)
+  }
+
+  async function runReviewAction(parsed: ParsedIntent): Promise<void> {
+    const id = ++runId
+    pushUserText(parsed.utterance)
+    resolveUnderstandingCards()
+    applyEvent({ type: 'USER_MESSAGE' })
+    patch({
+      composerDraft: '',
+      intent: parsed,
+      assistantMessage: null,
+      reminderCandidates: [],
+      reminderDrafts: [],
+      queryRequests: [],
+      activity: reviewActionActivity(),
+    })
+
+    await runReviewActivityStep('understand', 320)
+    if (!stillCurrent(id)) return
+
+    if (parsed.intent === 'show_pending' || parsed.intent === 'show_reminder_ready') {
+      await runReviewActivityStep('find', 360)
+      if (!stillCurrent(id)) return
+      const requests =
+        parsed.intent === 'show_pending'
+          ? listPendingRequests(snapshot.profileId)
+          : listReminderReadyRequests(snapshot.profileId)
+      const queryTitle =
+        parsed.intent === 'show_pending'
+          ? 'Pending review requests'
+          : 'Requests ready for a reminder'
+      applyEvent({ type: 'SHOW_RESULTS' })
+      patch({ queryRequests: requests, queryTitle, activity: [] })
+      pushAssistantText(
+        requests.length > 0
+          ? `I found ${requests.length} matching request${requests.length === 1 ? '' : 's'}.`
+          : 'I did not find any matching requests.',
+      )
+      return
+    }
+
+    await runReviewActivityStep('find', 380)
+    if (!stillCurrent(id)) return
+    const batch = parsed.intent === 'send_batch_reminders'
+    const name = recipientDisplayName(parsed)
+    const candidates = findReminderCandidates(snapshot.profileId, batch ? undefined : name)
+
+    await runReviewActivityStep('eligibility', 420)
+    if (!stillCurrent(id)) return
+    setReviewActivity('preview', 'pending')
+    applyEvent({ type: 'REMINDERS_FOUND' })
+    patch({ reminderCandidates: candidates })
+
+    if (candidates.length === 0) {
+      pushAssistantText(
+        batch
+          ? 'I did not find any pending review requests.'
+          : `I couldn't find a review request for ${name || 'that customer'}.`,
+        'error',
+      )
+      return
+    }
+
+    const eligible = candidates.filter((candidate) => candidate.eligible)
+    if (batch) {
+      pushAssistantText(
+        `I found ${candidates.length} pending request${candidates.length === 1 ? '' : 's'}. ${eligible.length} ${eligible.length === 1 ? 'is' : 'are'} eligible for a reminder.`,
+      )
+    } else {
+      const candidate = candidates[0]
+      pushAssistantText(
+        candidate.eligible
+          ? `I found ${candidate.request.recipientName}'s pending review request.`
+          : `${candidate.request.recipientName} isn't eligible for a reminder yet. ${candidate.reason}`,
+        candidate.eligible ? 'default' : 'error',
+      )
+    }
+  }
+
+  function reviewActionActivity(): ProcessingStep[] {
+    return [
+      { id: 'understand', label: 'Understanding request', status: 'active' },
+      { id: 'find', label: 'Finding pending requests', status: 'pending' },
+      { id: 'eligibility', label: 'Checking reminder eligibility', status: 'pending' },
+      { id: 'preview', label: 'Preparing reminders', status: 'pending' },
+      { id: 'confirm', label: 'Waiting for confirmation', status: 'pending' },
+    ]
+  }
+
+  function setReviewActivity(id: string, status: ProcessingStep['status']) {
+    patch({
+      activity: snapshot.activity.map((step) => (step.id === id ? { ...step, status } : step)),
+    })
+  }
+
+  async function runReviewActivityStep(id: string, delay: number) {
+    setReviewActivity(id, 'active')
+    await simulateDelay(delay)
+    setReviewActivity(id, 'done')
+    const next =
+      id === 'understand' ? 'find' : id === 'find' ? 'eligibility' : id === 'eligibility' ? 'preview' : null
+    if (next) setReviewActivity(next, 'active')
   }
 
   async function runUnderstanding(
@@ -498,8 +639,71 @@ export function createAgentSimulator(profileId = defaultProfileId): AgentSimulat
     })
   }
 
+  async function previewReminders(): Promise<void> {
+    if (snapshot.state !== 'reminder_found') return
+    const eligible = snapshot.reminderCandidates.filter((candidate) => candidate.eligible)
+    if (eligible.length === 0) return
+
+    setReviewActivity('preview', 'active')
+    await simulateDelay(420)
+    const drafts = eligible.map((candidate) => generateReminderEmail(candidate.request))
+    setReviewActivity('preview', 'done')
+    setReviewActivity('confirm', 'active')
+    applyEvent({ type: 'REMINDER_PREVIEW_READY' })
+    patch({
+      reminderDrafts: drafts,
+      editingWithAi: false,
+      revisingEmail: false,
+    })
+  }
+
+  async function acknowledgeReminderPreview(): Promise<void> {
+    if (snapshot.state !== 'reminder_preview') return
+    applyEvent({ type: 'REMINDER_REQUEST_CONFIRMATION' })
+    patch({ editingWithAi: false })
+  }
+
+  async function confirmReminderSend(): Promise<void> {
+    if (snapshot.state !== 'reminder_confirmation') return
+    const eligible = snapshot.reminderCandidates.filter((candidate) => candidate.eligible)
+    if (eligible.length === 0 || eligible.length !== snapshot.reminderDrafts.length) return
+
+    const id = ++runId
+    applyEvent({ type: 'REMINDER_SEND_STARTED' })
+    patch({
+      sendingSteps: [
+        { id: 'prepare_email', label: `Preparing ${eligible.length} reminder${eligible.length === 1 ? '' : 's'}`, status: 'active' },
+        { id: 'sending', label: 'Sending reminders', status: 'pending' },
+        { id: 'delivered', label: 'Delivered', status: 'pending' },
+      ],
+      reminderSentCount: 0,
+    })
+    await simulateDelay(360)
+    if (!stillCurrent(id)) return
+    setSendingStep('prepare_email', 'done')
+    setSendingStep('sending', 'active')
+
+    const results = await Promise.all(
+      eligible.map((candidate, index) =>
+        sendReminder(candidate.request.id, snapshot.reminderDrafts[index]),
+      ),
+    )
+    if (!stillCurrent(id)) return
+    const sentCount = results.filter(Boolean).length
+    setSendingStep('sending', 'done')
+    setSendingStep('delivered', 'active')
+    await simulateDelay(320)
+    if (!stillCurrent(id)) return
+    setSendingStep('delivered', 'done')
+    applyEvent({ type: 'REMINDER_SEND_SUCCEEDED' })
+    patch({ reminderSentCount: sentCount, assistantMessage: 'Reminder delivery simulated.' })
+  }
+
   async function cancel(): Promise<void> {
-    if (snapshot.state === 'awaiting_confirmation') {
+    if (
+      snapshot.state === 'awaiting_confirmation' ||
+      snapshot.state === 'reminder_confirmation'
+    ) {
       applyEvent({ type: 'CANCEL' })
       return
     }
@@ -542,7 +746,7 @@ export function createAgentSimulator(profileId = defaultProfileId): AgentSimulat
     prepareRequest,
     editRequest,
     async editWithAi() {
-      if (snapshot.state !== 'preview') {
+      if (snapshot.state !== 'preview' && snapshot.state !== 'reminder_preview') {
         return
       }
       patch({ editingWithAi: true })
@@ -594,6 +798,9 @@ export function createAgentSimulator(profileId = defaultProfileId): AgentSimulat
     retry,
     reset,
     loadDemoUtterance,
+    previewReminders,
+    acknowledgeReminderPreview,
+    confirmReminderSend,
   }
 }
 

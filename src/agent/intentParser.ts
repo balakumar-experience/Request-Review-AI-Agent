@@ -8,6 +8,10 @@ export interface ExtractedRecipient {
 
 export type UserIntent =
   | 'create_request'
+  | 'send_reminder'
+  | 'send_batch_reminders'
+  | 'show_pending'
+  | 'show_reminder_ready'
   | 'provide_field'
   | 'revise_copy'
   | 'confirm'
@@ -41,7 +45,7 @@ const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
 const SCENARIO_MATCHERS: MatcherScenario[] = [
   ...DEMO_SCENARIOS.map((scenario) => ({
     id: scenario.id,
-    intent: 'create_request' as const,
+    intent: scenario.intent ?? ('create_request' as const),
     firstName: scenario.firstName,
     lastName: scenario.lastName,
     email: scenario.email,
@@ -106,13 +110,40 @@ export function parseIntent(utterance: string): ParsedIntent {
     })
   }
 
+  if (/show .*ready for a reminder|which .*ready for a reminder/.test(normalized)) {
+    return withMissingFields({
+      intent: 'show_reminder_ready',
+      utterance: trimmed,
+      source: 'heuristic',
+    })
+  }
+
+  if (/show .*pending review request|show .*pending request/.test(normalized)) {
+    return withMissingFields({
+      intent: 'show_pending',
+      utterance: trimmed,
+      source: 'heuristic',
+    })
+  }
+
+  if (/send reminders? to (everyone|all)|remind (everyone|all)/.test(normalized)) {
+    return withMissingFields({
+      intent: 'send_batch_reminders',
+      utterance: trimmed,
+      source: 'heuristic',
+    })
+  }
+
   const email = extractEmail(trimmed)
   const name = extractName(trimmed)
+  const looksLikeReminder = /send (a )?reminder|remind /.test(normalized)
   const looksLikeRequest = /review request|send .*review|request a review/.test(normalized)
   const hasRecipient = Boolean(email || name.firstName)
 
   let intent: UserIntent = 'unknown'
-  if (looksLikeRequest) {
+  if (looksLikeReminder) {
+    intent = 'send_reminder'
+  } else if (looksLikeRequest) {
     intent = 'create_request'
   } else if (hasRecipient) {
     intent = 'provide_field'

@@ -7,10 +7,10 @@ interface AgentActivityPanelProps {
 
 export function AgentActivityPanel({ steps }: AgentActivityPanelProps) {
   const active = steps.find((step) => step.status === 'active')
-  const heading = active?.id === 'wait_confirmation' ? 'Waiting on you' : 'Agent activity'
+  const heading = active?.id === 'wait_confirmation' ? 'Waiting on you' : 'Progress'
 
   return (
-    <aside className="activity-panel" aria-live="polite" aria-label="Agent activity">
+    <aside className="activity-panel" aria-live="polite" aria-label="Request progress">
       <p className="activity-panel__kicker">
         <Activity size={14} />
         {heading}
