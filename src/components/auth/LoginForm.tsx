@@ -55,7 +55,11 @@ export function LoginForm({ onLogin }: LoginFormProps) {
         <label className="login-field">
           <span className="login-field__label">
             Password
-            <button type="button" className="login-form__forgot">
+            <button
+              type="button"
+              className="login-form__forgot"
+              onClick={() => setError('This demo uses the passwords shown on each user card.')}
+            >
               Forgot password?
             </button>
           </span>

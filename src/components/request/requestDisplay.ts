@@ -6,6 +6,7 @@ export function displayStatus(status: RequestStatus): string {
     case 'awaiting_review':
       return 'Awaiting Review'
     case 'reviewed':
+    case 'review_received':
       return 'Reviewed'
     case 'archived':
       return 'Archived'

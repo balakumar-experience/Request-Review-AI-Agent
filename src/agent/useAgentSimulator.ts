@@ -30,6 +30,9 @@ export function useAgentSimulator(profileId?: string): AgentSession {
       retry: simulator.retry,
       reset: simulator.reset,
       loadDemoUtterance: simulator.loadDemoUtterance,
+      previewReminders: simulator.previewReminders,
+      acknowledgeReminderPreview: simulator.acknowledgeReminderPreview,
+      confirmReminderSend: simulator.confirmReminderSend,
     }),
     [simulator, snapshot],
   )

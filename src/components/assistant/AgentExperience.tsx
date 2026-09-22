@@ -6,6 +6,14 @@ import { EmailPreview } from '../request/EmailPreview'
 import { RequestDetail } from '../request/RequestDetail'
 import { SendingProgress } from '../request/SendingProgress'
 import { SendSuccess } from '../request/SendSuccess'
+import {
+  QueryResults,
+  ReminderCompleted,
+  ReminderConfirmation,
+  ReminderFound,
+  ReminderPreview,
+  ReminderSending,
+} from './ReminderExperience'
 
 interface AgentExperienceProps {
   snapshot: AgentSnapshot
@@ -102,6 +110,12 @@ const STATE_EXPERIENCES: Record<AgentState, (props: StateViewProps) => ReactElem
   awaiting_confirmation: AwaitingConfirmationExperience,
   sending: SendingExperience,
   completed: CompletedExperience,
+  reminder_found: ReminderFound,
+  reminder_preview: ReminderPreview,
+  reminder_confirmation: ReminderConfirmation,
+  reminder_sending: ReminderSending,
+  reminder_completed: ReminderCompleted,
+  query_results: QueryResults,
   error: ErrorExperience,
 }
 

@@ -12,6 +12,7 @@ import {
   Search,
   UserRound,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { User } from '../../auth/mockUsers'
 import { getDashboardMetrics } from '../../data/dashboardMetrics'
 import { ScoreGauge } from './ScoreGauge'
@@ -20,31 +21,65 @@ interface DashboardHomeProps {
   user: User
   onRequestReview: () => void
   onViewRequests: () => void
+  onOpenProfile: () => void
+  onOpenSettings: () => void
 }
 
-export function DashboardHome({ user, onRequestReview, onViewRequests }: DashboardHomeProps) {
+export function DashboardHome({
+  user,
+  onRequestReview,
+  onViewRequests,
+  onOpenProfile,
+  onOpenSettings,
+}: DashboardHomeProps) {
   const metrics = getDashboardMetrics(user.profileId)
   const subject = user.profileType === 'location' ? 'This location is' : 'You are'
   const scoreRatio = Math.min(metrics.searchRankScore / metrics.searchRankMax, 1)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!notice) {
+      return
+    }
+    const timer = window.setTimeout(() => setNotice(null), 2800)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
   return (
     <div className="home">
+      {notice ? (
+        <p className="home-toast" role="status">
+          {notice}
+        </p>
+      ) : null}
       <div className="home-banner">
         <strong>The Next Era of Search Has Arrived</strong>
         <span>Customers are searching right now. Don’t get left out of the AI answers.</span>
-        <button type="button">Learn about AI Visibility →</button>
+        <button type="button" onClick={onOpenSettings}>
+          Learn about AI Visibility →
+        </button>
       </div>
 
       <div className="home-topbar">
         <p className="home-topbar__crumb">Dashboard</p>
         <div className="home-topbar__actions">
-          <button type="button" className="home-icon-btn" aria-label="Search">
+          <button
+            type="button"
+            className="home-icon-btn"
+            aria-label="Search"
+            onClick={() => setNotice('Search is visual-only in this prototype.')}
+          >
             <Search size={15} />
           </button>
-          <button type="button" className="home-topbar__help">
+          <button type="button" className="home-topbar__help" onClick={onOpenSettings}>
             Help
           </button>
-          <button type="button" className="home-icon-btn" aria-label="Notifications">
+          <button
+            type="button"
+            className="home-icon-btn"
+            aria-label="Notifications"
+            onClick={onViewRequests}
+          >
             <Bell size={15} />
           </button>
           <div className="home-topbar__viewer">
@@ -72,7 +107,11 @@ export function DashboardHome({ user, onRequestReview, onViewRequests }: Dashboa
             </div>
           </section>
 
-          <button type="button" className="home-ghost-btn">
+          <button
+            type="button"
+            className="home-ghost-btn"
+            onClick={() => setNotice('Play Game is visual-only in this prototype.')}
+          >
             <Play size={14} />
             Play Game
           </button>
@@ -100,7 +139,11 @@ export function DashboardHome({ user, onRequestReview, onViewRequests }: Dashboa
                 <MessageSquare size={14} /> Answers <strong>{metrics.answers}</strong>
               </span>
             </div>
-            <button type="button" className="home-primary-btn">
+            <button
+              type="button"
+              className="home-primary-btn"
+              onClick={() => setNotice('Writing Studio is visual-only in this prototype.')}
+            >
               <PenLine size={15} />
               Write Article
             </button>
@@ -161,7 +204,11 @@ export function DashboardHome({ user, onRequestReview, onViewRequests }: Dashboa
                 </p>
               </button>
 
-              <div className="metric-card metric-card--profile">
+              <button
+                type="button"
+                className="metric-card metric-card--profile"
+                onClick={onOpenProfile}
+              >
                 <span className="metric-card__icon">
                   <UserRound size={15} />
                 </span>
@@ -175,9 +222,13 @@ export function DashboardHome({ user, onRequestReview, onViewRequests }: Dashboa
                 <span className="metric-card__bar">
                   <span style={{ width: '38%' }} />
                 </span>
-              </div>
+              </button>
 
-              <div className="metric-card metric-card--connections">
+              <button
+                type="button"
+                className="metric-card metric-card--connections"
+                onClick={() => setNotice('Connections are visual-only in this prototype.')}
+              >
                 <span className="metric-card__icon">
                   <Link2 size={15} />
                 </span>
@@ -188,7 +239,7 @@ export function DashboardHome({ user, onRequestReview, onViewRequests }: Dashboa
                 <p className="metric-card__value">
                   <strong>{metrics.connections}</strong> of {metrics.connectionsTotal} connections
                 </p>
-              </div>
+              </button>
             </div>
           </section>
 

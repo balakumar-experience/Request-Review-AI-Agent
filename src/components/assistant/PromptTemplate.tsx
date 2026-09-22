@@ -55,7 +55,12 @@ export function PromptTemplate({ onUse }: PromptTemplateProps) {
     }
 
     try {
-      await navigator.clipboard.writeText(prompt)
+      await Promise.race([
+        navigator.clipboard.writeText(prompt),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('clipboard-timeout')), 700)
+        }),
+      ])
       flashCopyState('copied')
       return
     } catch {
