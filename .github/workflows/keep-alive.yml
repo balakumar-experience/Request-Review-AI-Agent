@@ -1,0 +1,36 @@
+# Hits the public URLs on a schedule.
+# This cannot stop Vercel from deleting an *anonymous* 60-minute deploy.
+# After the project is claimed (or Pages is live), the ping keeps the routes warm.
+name: Keep-alive ping
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping public URLs
+        env:
+          VERCEL_URL: https://temporary-brisk-glacier-mvk9fkm.vercel.app
+          PAGES_URL: https://balakumar-experience.github.io/Request-Review-AI-Agent
+        run: |
+          set +e
+          ping_url() {
+            local url="$1"
+            echo "GET $url"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$url")
+            echo "status $code"
+            if [ "$code" != "200" ]; then
+              echo "::warning::$url returned $code"
+              return 1
+            fi
+          }
+
+          ping_url "$VERCEL_URL/login"
+          ping_url "$VERCEL_URL/dashboard"
+          ping_url "$PAGES_URL/login"
+          ping_url "$PAGES_URL/dashboard"
+          exit 0
